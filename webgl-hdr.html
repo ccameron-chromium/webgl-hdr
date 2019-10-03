@@ -1,0 +1,93 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>WebGL HDR/WCG Test</title>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec2 a_position;
+varying vec2 v_position;
+void main() {
+    v_position = a_position;
+    gl_Position = vec4(a_position, 0, 1);
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec2 v_position;
+void main() {
+    if (v_position.x < 0.0) {
+      // The left side is P3(1,0,0) versus sRGB(1,0,0)
+      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+      vec3 p3_1_0_0 = vec3(1.093034, -0.226670, -0.150102);
+      if (v_position.x < -0.5)
+        gl_FragColor = vec4(p3_1_0_0, 1.0);
+    } else {
+      // The right side is sRGB(1,1,1) and something that should be twice its luminance.
+      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      float twice_luminance = 1.353256;
+      if (v_position.x > 0.5)
+        gl_FragColor = vec4(vec3(twice_luminance), 1.0);
+    }
+}
+</script>
+
+<script>
+// Create n textures of about 1MB each.
+function initGL() {
+  var canvas = document.getElementById("canvas_id1");
+  var gl = canvas.getContext("webgl2", { pixelFormat:"float16", antialias:false, alpha:true});
+  if (!gl)
+    return;
+
+  // Create a shader that samples a 2D image.
+  var shaderProgram = null;
+  {
+    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, document.getElementById("vertex-shader").textContent);
+    gl.compileShader(vertexShader);
+
+    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader, document.getElementById("fragment-shader").textContent);
+    gl.compileShader(fragmentShader);
+
+    shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+    gl.useProgram(shaderProgram);
+  }
+
+  // Bind a vertex buffer with a single quad.
+  {
+    var buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    var bufferData = new Float32Array([
+        -1.0, -1.0,   1.0, -1.0,   -1.0,  1.0,
+        -1.0,  1.0,   1.0,  1.0,    1.0, -1.0]);
+    gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(shaderProgram.a_position);
+    gl.vertexAttribPointer(shaderProgram.a_position, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  // Draw the quad to the screen.
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, 256, 32);
+  gl.clearColor(1.0, 1.0, 1.0, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+</script>
+</head>
+
+<body onload="initGL()" bgcolor="#FF0000">
+<p>The background of this page is sRGB(1,0,0)</p>
+<p>The left side of this canvas is drawing xsRGB(1.093034 -0.226670 -0.150102), which is equivalent to P3(1,0,0).</p>
+<p>The next-to-left box should be sRGB(1,0,0).</p>
+<p>The next-right box should be sRGB(1,1,1).</p>
+<p>The right side of this canvas is drawing xsRGB(1.353256,,), which should have twice the physical luminance of sRGB(1,1,1).</p>
+<p><canvas id="canvas_id1" width=256px height=32px style="width:256px; height:32px;"></canvas><p id="p_id1"></p></p>
+</body>
+<p>This image has a background of P3(1,0,0) and has a logo with color sRGB(1,0,0) in the center.</p>
+<img src="./Webkit-logo-P3.png" style="width:512px;height:512px">
+</html>
