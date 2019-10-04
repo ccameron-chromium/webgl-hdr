@@ -4,31 +4,27 @@
 <title>WebGL HDR/WCG Test</title>
 
 <script id="vertex-shader" type="x-shader/x-vertex">
+// A trivial vertex shader.
 attribute vec2 a_position;
 varying vec2 v_position;
 void main() {
-    v_position = a_position;
-    gl_Position = vec4(a_position, 0, 1);
+  v_position = a_position;
+  gl_Position = vec4(a_position, 0, 1);
 }
 </script>
 
 <script id="fragment-shader" type="x-shader/x-fragment">
+// A trivial texture-reading fragment shader.
 precision mediump float;
 varying vec2 v_position;
+uniform sampler2D u_sampler;
 void main() {
-    if (v_position.x < 0.0) {
-      // The left side is P3(1,0,0) versus sRGB(1,0,0)
-      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-      vec3 p3_1_0_0 = vec3(1.093034, -0.226670, -0.150102);
-      if (v_position.x < -0.5)
-        gl_FragColor = vec4(p3_1_0_0, 1.0);
-    } else {
-      // The right side is sRGB(1,1,1) and something that should be twice its luminance.
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-      float twice_luminance = 1.353256;
-      if (v_position.x > 0.5)
-        gl_FragColor = vec4(vec3(twice_luminance), 1.0);
-    }
+  // Note that doing color conversion in the fragment processor is almost
+  // completely free on most modern GPUs, so the uploaded texture could be in
+  // any color space. See the below link for some experiments.
+  // https://docs.google.com/document/d/1lTyFs7_BtBAdL0ChoUtq1RVmP_1boGcnpqiNuNY5Ugk/edit?usp=sharing
+  vec2 texcoord = vec2(v_position.x * 0.5 + 0.5, 0.0);
+  gl_FragColor = texture2D(u_sampler, texcoord);
 }
 </script>
 
@@ -68,6 +64,37 @@ function initGL() {
     gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(shaderProgram.a_position);
     gl.vertexAttribPointer(shaderProgram.a_position, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  // Upload a floating-point texture.
+  var texture = gl.createTexture();
+  {
+    const data = new Float32Array([
+      // The left side is P3(1,0,0)
+      1.093034, -0.226670, -0.150102, 1.0,
+      // Then sRGB(1,0,0)
+      1.0, 0.0, 0.0, 1.0,
+      // Then sRGB(1,1,1)
+      1.0, 1.0, 1.0, 1.0,
+      // Then twice the physical luminance of sRGB(1,1,1).
+      1.353256, 1.353256, 1.353256, 1.0,
+    ]);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    const alignment = 1;
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, alignment);
+    gl.texImage2D(gl.TEXTURE_2D,
+                  0 /*level */,
+                  gl.RGBA16F /* internalFormat */,
+                  4 /* width */,
+                  1 /* height */,
+                  0 /* border */,
+                  gl.RGBA /* format */,
+                  gl.FLOAT /* type */, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.uniform1i(gl.getUniformLocation(shaderProgram, 'u_sampler'), 0);
   }
 
   // Draw the quad to the screen.
