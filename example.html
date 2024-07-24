@@ -5,6 +5,17 @@ var gl = null;
 var gl_program = null;
 
 let drawGLCanvas = function() {
+  // Select the tone mapping mode based on the radio button.
+  let toneMappingMode = null;
+  if (ToneMapModeStandard.checked) {
+    toneMappingMode = "standard";
+  }
+  if (ToneMapModeExtended.checked) {
+    toneMappingMode = "extended";
+  }
+  gl.drawingBufferToneMapping({ mode:toneMappingMode });
+
+
   gl.useProgram(gl_program);
 
   let vertices = gl.createBuffer();
@@ -50,16 +61,6 @@ let update = function() {
     }
     PixelValueLinear.innerHTML = srgbToLinear(PixelValueSlider.value).toFixed(2);
   }
-
-  // Select the tone mapping mode based on the radio button.
-  let toneMappingMode = null;
-  if (ToneMapModeStandard.checked) {
-    toneMappingMode = "standard";
-  }
-  if (ToneMapModeExtended.checked) {
-    toneMappingMode = "extended";
-  }
-  gl.drawingBufferToneMapping({ mode:toneMappingMode });
 
   drawGLCanvas();
 }
