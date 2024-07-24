@@ -41,7 +41,7 @@ enum WebGLToneMappingMode {
 };
 
 dictionary WebGLToneMapping {
-  GLCanvasToneMappingMode mode = "standard";
+  WebGLToneMappingMode mode = "standard";
 };
 
 partial interface WebGLRenderingContextBase {
