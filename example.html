@@ -1,0 +1,152 @@
+<html>
+<head>
+<script>
+var gl = null;
+var gl_program = null;
+
+let drawGLCanvas = function() {
+  gl.useProgram(gl_program);
+
+  let vertices = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, 1,1, -1,1]), gl.STATIC_DRAW);
+
+  let indices = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
+
+  let positionLocation = gl.getAttribLocation(gl_program, 'position');
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(positionLocation);
+
+  gl.uniform1f(gl.getUniformLocation(gl_program, 'pixel_value'), PixelValueSlider.value);
+  gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+}
+
+let update = function() {
+  // Update dynamic range query result.
+  DynamicRangeMatch.innerHTML = "(unsupported)";
+  if (window.matchMedia("(dynamic-range: standard)").matches) {
+    DynamicRangeMatch.innerHTML = "standard";
+  }
+  if (window.matchMedia("(dynamic-range: high)").matches) {
+    DynamicRangeMatch.innerHTML = "high";
+    DynamicRangeExplanation.hidden = true;
+  } else {
+    DynamicRangeExplanation.hidden = false;
+  }
+
+  // Update the pixel value displays.
+  PixelValue.innerHTML = Number(PixelValueSlider.value).toFixed(2);
+  {
+    let parametricEval = function(x, a, b, c, d, e, f, g) {
+      const absX = Math.abs(x);
+      const sgnX = Math.sign(x);
+      return sgnX * (absX <= d) ? c*absX + f : Math.pow(a*absX + b, g) + e;
+    }
+    let srgbToLinear = function(x) {
+      return parametricEval(
+          x, 1/1.055, 0.055/1.055, 1/12.92, 0.04045, 0, 0, 2.4);
+    }
+    PixelValueLinear.innerHTML = srgbToLinear(PixelValueSlider.value).toFixed(2);
+  }
+
+  // Select the tone mapping mode based on the radio button.
+  let toneMappingMode = null;
+  if (ToneMapModeStandard.checked) {
+    toneMappingMode = "standard";
+  }
+  if (ToneMapModeExtended.checked) {
+    toneMappingMode = "extended";
+  }
+  gl.drawingBufferToneMapping({ mode:toneMappingMode });
+
+  drawGLCanvas();
+}
+
+function main() {
+  gl = GLCanvas.getContext('webgl2');
+  gl.getExtension('EXT_color_buffer_half_float');
+  gl.getExtension('EXT_color_buffer_float');
+  gl.drawingBufferStorage(gl.RGBA16F, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+  let compileShader = function(gl, vertex_source, fragment_source) {
+    let vertex_shader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertex_shader, vertex_source);
+    gl.compileShader(vertex_shader);
+    if (!gl.getShaderParameter(vertex_shader, gl.COMPILE_STATUS))
+      throw new Error(gl.getShaderInfoLog(vertex_shader));
+       
+    let fragment_shader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragment_shader, fragment_source); 
+    gl.compileShader(fragment_shader);
+    if (!gl.getShaderParameter(fragment_shader, gl.COMPILE_STATUS))
+      throw new Error(gl.getShaderInfoLog(fragment_shader));
+    
+    let program = gl.createProgram();
+    gl.attachShader(program, vertex_shader);
+    gl.attachShader(program, fragment_shader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+      throw new Error(gl.getProgramInfoLog(program));
+
+    return program;
+  }
+
+  const vs = `attribute vec2 position;
+
+              void main() {
+                gl_Position = vec4(position, 0.0, 1.0);
+              }`;
+  const fs = `precision highp float;
+              uniform float pixel_value;
+
+              void main() {
+                gl_FragColor = vec4(pixel_value, pixel_value, pixel_value, 1.0);
+              }`;
+  gl_program = compileShader(gl, vs, fs);
+  gl.useProgram(gl_program);
+
+  PixelValueSlider.addEventListener('input', update, false);
+
+  update();
+}
+</script>
+</head>
+
+<body onload='main()'>
+<h1>HDR support</h1>
+<p>The <tt>dynamic-range</tt> media query matches <tt id="DynamicRangeMatch">?</tt>.</p>
+
+<p id="DynamicRangeExplanation" hidden>This means that, on this display, setting the tone mapping mode to <tt>extended</tt> will have no effect (it will be the same as setting it to <tt>standard</tt>).</p>
+
+<p>
+This demo requires that "Experimental Web Platform features" be enabled in chrome://flags.
+</p>
+
+<h1>Rendering settings</h1>
+<p>
+  Pixel value:
+  <input id="PixelValueSlider" type="range" min="0" max="3" step="0.01" value="1" list="PixelValueSliderTicks""/>
+  <datalist id="PixelValueSliderTicks">
+    <option value="0" label="0"></option>
+    <option value="1" label="1"></option>
+    <option value="2" label="2"></option>
+    <option value="3" label="3"></option>
+  </datalist>
+  <tt id="PixelValue"></tt> (sRGB-encoded), <tt id="PixelValueLinear">?</tt> (linear-encoded)
+</p>
+
+
+<p>
+Tone map mode: 
+<input type="radio" name="ToneMapMode" id="ToneMapModeStandard" onchange="update();" checked="true">
+<label for="ToneMapModeStandard"><tt>standard</tt></label>
+<input type="radio" name="ToneMapMode" id="ToneMapModeExtended" onchange="update();">
+<label for="ToneMapModeExtended"><tt>extended</tt></label>
+</p>
+
+<h1>Canvas</h1>
+<canvas id="GLCanvas" style="width:32px; height:32px; border:1px solid black;"></canvas>
+
+</html>
