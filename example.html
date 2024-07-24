@@ -15,7 +15,6 @@ let drawGLCanvas = function() {
   }
   gl.drawingBufferToneMapping({ mode:toneMappingMode });
 
-
   gl.useProgram(gl_program);
 
   let vertices = gl.createBuffer();
@@ -48,19 +47,17 @@ let update = function() {
   }
 
   // Update the pixel value displays.
-  PixelValue.innerHTML = Number(PixelValueSlider.value).toFixed(2);
-  {
-    let parametricEval = function(x, a, b, c, d, e, f, g) {
-      const absX = Math.abs(x);
-      const sgnX = Math.sign(x);
-      return sgnX * (absX <= d) ? c*absX + f : Math.pow(a*absX + b, g) + e;
-    }
-    let srgbToLinear = function(x) {
-      return parametricEval(
-          x, 1/1.055, 0.055/1.055, 1/12.92, 0.04045, 0, 0, 2.4);
-    }
-    PixelValueLinear.innerHTML = srgbToLinear(PixelValueSlider.value).toFixed(2);
+  let parametricEval = function(x, a, b, c, d, e, f, g) {
+    const absX = Math.abs(x);
+    const sgnX = Math.sign(x);
+    return sgnX * (absX <= d) ? c*absX + f : Math.pow(a*absX + b, g) + e;
   }
+  let srgbToLinear = function(x) {
+    return parametricEval(
+        x, 1/1.055, 0.055/1.055, 1/12.92, 0.04045, 0, 0, 2.4);
+  }
+  PixelValue.innerHTML = Number(PixelValueSlider.value).toFixed(2);
+  PixelValueLinear.innerHTML = srgbToLinear(PixelValueSlider.value).toFixed(2);
 
   drawGLCanvas();
 }
@@ -138,7 +135,6 @@ This demo requires that "Experimental Web Platform features" be enabled in chrom
   <tt id="PixelValue"></tt> (sRGB-encoded), <tt id="PixelValueLinear">?</tt> (linear-encoded)
 </p>
 
-
 <p>
 Tone map mode: 
 <input type="radio" name="ToneMapMode" id="ToneMapModeStandard" onchange="update();" checked="true">
@@ -150,4 +146,5 @@ Tone map mode:
 <h1>Canvas</h1>
 <canvas id="GLCanvas" style="width:32px; height:32px; border:1px solid black;"></canvas>
 
+</body>
 </html>
